@@ -1,0 +1,41 @@
+name: Build and Push Spellchecker Docker Image (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Дополнительный тег для образа (например: v1.0)'
+        required: false
+        default: 'latest'
+
+env:
+  REGISTRY: registry.toolbox.local:5000
+  IMAGE_NAME: spellchecker
+  REPO_NAME: ${{ github.repository }}  # Название репозитория (org/repo)
+
+jobs:
+  build-and-push:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout repository (spellchecker folder only)
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.workspace }}/${{ env.REPO_NAME }}
+          sparse-checkout: spellchecker
+          sparse-checkout-cone-mode: false
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_LOGIN }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ github.workspace }}/${{ env.REPO_NAME }}/spellchecker
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.tag || 'latest' }}
