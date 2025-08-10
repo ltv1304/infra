@@ -39,3 +39,9 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.tag || 'latest' }}
+
+      - name: Clean workspace
+        if: always()
+        run: |
+          echo "Очистка рабочей директории"
+          rm -rf "${{ github.workspace }}"/*
