@@ -45,3 +45,5 @@ jobs:
         run: |
           echo "Очистка рабочей директории"
           rm -rf "${{ github.workspace }}"/*
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.tag || 'latest' }} || true
+          docker builder prune -f
