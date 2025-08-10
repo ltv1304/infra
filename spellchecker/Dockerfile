@@ -8,8 +8,11 @@ RUN apt-get install -y --no-install-recommends \
         default-jre \
         nodejs npm \
         hunspell \
-        hunspell-ru
+        hunspell-ru \
+        hunspell-en-us
 
+RUN npm i -g n
+RUN n 20
 RUN npm i -g @343dev/languagetool-node
 RUN npm i -g cspell 
 RUN npm i -g @cspell/dict-ru_ru
