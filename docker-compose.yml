@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/config
+      - --providers.file.watch=true
+      # Entrypoints
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --log.level=DEBUG
+    
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/certs:/certs
+      - ./traefik/config:/config
+      - ./docker_registry/auth:/registry/auth
+    networks:
+      - traefik-net
+
+  registry:
+    image: registry:2
+    hostname: registry.toolbox.local
+    restart: unless-stopped
+    environment:
+      REGISTRY_HTTP_HOST: "http://registry:5000"
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    volumes:
+      - ./docker_registry/registry:/var/lib/registry
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.registry.rule=Host(`registry.toolbox.local`)"
+      - "traefik.http.routers.registry.entrypoints=websecure"
+      - "traefik.http.routers.registry.tls=true"
+      - "traefik.http.services.registry.loadbalancer.server.port=5000"
+      - "traefik.http.services.registry.loadbalancer.server.scheme=http"
+      - "traefik.http.middlewares.registry-auth.basicauth.usersfile=/registry/auth/htpasswd"
+      - "traefik.http.routers.registry.middlewares=registry-auth"
+    networks:
+      - traefik-net
+
+  minio:
+    image: minio/minio
+    hostname: minio.toolbox.local
+    command: server /data --console-address ":9001"
+    env_file: ./minio/.env
+    environment:
+      MINIO_SERVER_URL: "https://minio.toolbox.local"
+      MINIO_BROWSER_REDIRECT_URL: "https://minio-console.toolbox.local"
+      MINIO_BROWSER: "ON"
+    volumes:
+      - ./minio/data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=infra_traefik-net"
+      - "traefik.http.middlewares.minio-auth.basicauth.usersfile=/registry/auth/htpasswd"
+
+      # API (порт 9000)
+      - "traefik.http.routers.minio-api.rule=Host(`minio.toolbox.local`)"
+      - "traefik.http.routers.minio-api.entrypoints=websecure"
+      - "traefik.http.routers.minio-api.tls=true"
+      - "traefik.http.routers.minio-api.middlewares=minio-auth"
+      - "traefik.http.routers.minio-api.service=minio-api"
+      - "traefik.http.services.minio-api.loadbalancer.server.port=9000"
+
+      # Console (порт 9001)
+      - "traefik.http.routers.minio-console.rule=Host(`minio-console.toolbox.local`)"
+      - "traefik.http.routers.minio-console.entrypoints=websecure"
+      - "traefik.http.routers.minio-console.tls=true"
+      - "traefik.http.routers.minio-console.middlewares=minio-auth"
+      - "traefik.http.routers.minio-console.service=minio-console"
+      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+    networks:
+      - traefik-net
+
+networks:
+  traefik-net:
+    driver: bridge
